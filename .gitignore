@@ -31,5 +31,5 @@ project.lock.json
 global.json
 /src/.vs/
 launchSettings.json
-/.vs
+.vs
 /env.list
