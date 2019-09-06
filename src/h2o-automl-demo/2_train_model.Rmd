@@ -94,7 +94,7 @@ auto <- h2o.automl(x = features, y = label,
                    training_frame = train_dt,
                    validation_frame = valid_dt,
                    leaderboard_frame = test_dt,
-                   max_runtime_secs = 60*1, #! set appropriate duration of searching model
+                   max_runtime_secs = 60*10, #! set appropriate duration of searching model
                    seed = 314)
 ```
 
