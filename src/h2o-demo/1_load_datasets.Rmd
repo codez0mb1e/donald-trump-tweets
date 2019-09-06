@@ -1,0 +1,141 @@
+---
+title: "@realDonaldTrump Tweets for Dow Jones Index Direction Prediction"
+author: Dmitry Petukhov
+output: github_document
+---
+
+
+_Prepare dataset contains:_
+* _@realDonaldTrump tweets, _
+* _its sentiment scores from Microsoft Cognitive Service, _
+* _Dow Jones Index._
+
+
+Import dependencies and read config:
+```{r set_env_options}
+options(max.print = 1e3, scipen = 999, width = 1e2)
+options(stringsAsFactors = F)
+```
+
+```{r import_dependencies, echo=TRUE}
+suppressPackageStartupMessages({
+  library(data.table)
+  library(dplyr)
+  library(tidyr)
+  library(purrr)
+  library(magrittr)
+  
+  library(stringr)
+  library(lubridate)
+  
+  library(Quandl)
+})
+
+```
+
+```{r read_secrets, echo=TRUE}
+secrets <- config::get(file = "secrets.yml")
+```
+
+
+## @realDonaldTrump Tweets
+
+Download tweets:
+```{r read_tweets, cache=TRUE}
+donald_tweets_url <- sprintf("https://datainstinct.blob.core.windows.net/twitter/realdonaldtrump.csv?%s", secrets$azure_storage_key)
+
+donald_tweets <- fread(donald_tweets_url, quote = "")
+
+donald_tweets %<>% 
+  mutate(
+    id_str = as.character(id_str),
+    created_at = mdy_hms(created_at),
+    created_date = as.Date(created_at)
+  ) %>% 
+  mutate(
+    text = str_replace_all(text, '[^([:graph:][:space:])]', " | "),
+    text = str_replace_all(text, '\"|\n', " || ")
+  )
+
+donald_tweets %>% as_tibble()
+```
+
+
+## Tweets sentiment 
+
+Get tweets sentiment score:  
+```{r get_sentiment, cache=TRUE}
+source("text_analytics_api.R")
+
+donald_tweets_sentiments <- donald_tweets %>%
+  group_by(lubridate::year(created_date), lubridate::month(created_date)) %>% 
+  group_map(~ get_sentiment(.x, secrets$cognitive_services_api_key)) %>%
+  ungroup() %>% 
+  transmute(
+    id_str = id,
+    sentiment_score = score
+  )
+```
+
+
+## Dow Jones index
+
+Get stock data:
+
+```{r get_dow_jones_index, cache=TRUE}
+Quandl.api_key(secrets$quandl_api_key)
+dji <- Quandl("BCB/7809")
+
+dji %<>% 
+  arrange(Date) %>% 
+  mutate(diff = Value - lag(Value)) %>% 
+  na.omit %>% 
+  mutate(
+    direction = if_else(diff < 0, 0L, 1L)
+  ) %>% 
+  transmute(
+    date = Date, direction
+  )
+
+```
+
+
+## Join datasets
+
+Aggregate tweets (daily):
+
+```{r aggregate_twees}
+donald_tweets_aggr <- donald_tweets %>% 
+  filter(!is_retweet) %>% 
+  inner_join(donald_tweets_sentiments, by = "id_str") %>% 
+  group_by(created_date) %>% 
+  summarise(
+    n = n(),
+    
+    sentiment_score_min = min(sentiment_score),
+    sentiment_score_mean = mean(sentiment_score),
+    sentiment_score_max = max(sentiment_score),
+    
+    retweet_count_total = sum(retweet_count),
+    retweet_count_median = median(retweet_count),
+    
+    favorite_count_total = sum(favorite_count),
+    favorite_count_median = median(retweet_count),
+    
+    text_total = paste(text, collapse = " ||| ")
+  ) %>% 
+  ungroup() %>% 
+  inner_join(dji, by = c("created_date" = "date"))
+
+donald_tweets_aggr
+```
+
+
+```{r save_output, include=FALSE}
+saveRDS(donald_tweets_aggr, sprintf("cache/%s.rds", Sys.Date()))
+
+write.table(donald_tweets_aggr, file = "output/donald_tweets_aggr.csv",
+            sep = ";", fileEncoding = "utf-8",
+            row.names = F, col.names = T, append = F, quote = T)
+```
+
