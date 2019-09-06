@@ -1,10 +1,13 @@
 ---
 title: "@realDonaldTrump Tweets for Dow Jones Index Direction Prediction"
 author: Dmitry Petukhov
-output: github_document
+output:
+  github_document:
+    toc: true
+    toc_depth: 2
 ---
 
-_Train ML-model that predict Dow Jones Index direction by @realDonaldTrump tweets._
+__Train ML-model that predict Dow Jones Index direction by @realDonaldTrump tweets.__
 
 
 Import dependencies and read config:
@@ -86,7 +89,7 @@ dim(test_dt)
 
 ## Train Model
 Start AutoML models training:
-```{r h2o_automl}
+```{r h2o_automl, message=FALSE}
 auto <- h2o.automl(x = features, y = label,
                    training_frame = train_dt,
                    validation_frame = valid_dt,
@@ -112,7 +115,7 @@ best
 
 View feature importance:
 ```{r varimp_plot}
-h2o.varimp_plot(best, num_of_features = 10)
+#h2o.varimp_plot(best, num_of_features = 10)
 ```
 
 

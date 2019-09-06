@@ -1,14 +1,20 @@
 ---
 title: "@realDonaldTrump Tweets for Dow Jones Index Direction Prediction"
 author: Dmitry Petukhov
-output: github_document
+output:
+  github_document:
+    toc: true
+    toc_depth: 2
 ---
 
 
-_Prepare dataset contains:_
-* _@realDonaldTrump tweets, _
-* _its sentiment scores from Microsoft Cognitive Service, _
-* _Dow Jones Index._
+__Prepare dataset contains:__
+
+* __@realDonaldTrump tweets,__
+
+* __its sentiment scores from Microsoft Cognitive Service__
+
+* __Dow Jones Index.__
 
 
 Import dependencies and read config:
@@ -75,6 +81,8 @@ donald_tweets_sentiments <- donald_tweets %>%
     id_str = id,
     sentiment_score = score
   )
+
+donald_tweets_sentiments %>% as_tibble
 ```
 
 
@@ -97,6 +105,7 @@ dji %<>%
     date = Date, direction
   )
 
+dji %>% as_tibble
 ```
 
 
@@ -127,7 +136,7 @@ donald_tweets_aggr <- donald_tweets %>%
   ungroup() %>% 
   inner_join(dji, by = c("created_date" = "date"))
 
-donald_tweets_aggr
+donald_tweets_aggr %>% as_tibble
 ```
 
 
@@ -135,7 +144,7 @@ donald_tweets_aggr
 saveRDS(donald_tweets_aggr, sprintf("cache/%s.rds", Sys.Date()))
 
 write.table(donald_tweets_aggr, file = "output/donald_tweets_aggr.csv",
-            sep = ";", fileEncoding = "utf-8",
+            sep = ",", fileEncoding = "utf-8",
             row.names = F, col.names = T, append = F, quote = T)
 ```
 
