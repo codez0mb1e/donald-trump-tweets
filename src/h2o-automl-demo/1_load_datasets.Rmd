@@ -54,14 +54,15 @@ donald_tweets <- fread(donald_tweets_url, quote = "")
 
 donald_tweets %<>% 
   mutate(
-    id_str = as.character(id_str),
+    id = as.character(id_str),
+    # dates processing
     created_at = mdy_hms(created_at),
-    created_date = as.Date(created_at)
-  ) %>% 
-  mutate(
+    created_date = as.Date(created_at),
+    # text processing
     text = str_replace_all(text, '[^([:graph:][:space:])]', " | "),
     text = str_replace_all(text, '\"|\n', " || ")
-  )
+  ) %>% 
+  select(-id_str)
 
 donald_tweets %>% as_tibble()
 ```
@@ -71,16 +72,13 @@ donald_tweets %>% as_tibble()
 
 Get tweets sentiment score:  
 ```{r get_sentiment, cache=TRUE}
-source("text_analytics_api.R")
+source("cognitive_services_api.R")
 
 donald_tweets_sentiments <- donald_tweets %>%
   group_by(lubridate::year(created_date), lubridate::month(created_date)) %>% 
-  group_map(~ get_sentiment(.x, secrets$cognitive_services_api_key)) %>%
+  group_map(~ get_sentiment(.x, secrets$cognitive_services_api_key, verbose = T)) %>%
   ungroup() %>% 
-  transmute(
-    id_str = id,
-    sentiment_score = score
-  )
+  transmute(id, sentiment_score = score)
 
 donald_tweets_sentiments %>% as_tibble
 ```
@@ -116,7 +114,7 @@ Aggregate tweets (daily):
 ```{r aggregate_twees}
 donald_tweets_aggr <- donald_tweets %>% 
   filter(!is_retweet) %>% 
-  inner_join(donald_tweets_sentiments, by = "id_str") %>% 
+  inner_join(donald_tweets_sentiments, by = "id") %>% 
   group_by(created_date) %>% 
   summarise(
     n = n(),

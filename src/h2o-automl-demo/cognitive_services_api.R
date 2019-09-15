@@ -24,7 +24,7 @@ get_api_url <- function(service_name) {
 
 #' Get result from Sentiment Analysis API
 #'
-#' @param dt Dataframe that contains id_str and text fields
+#' @param dt Dataframe that contains id and text fields
 #' @param api_key Cognitive Services API key
 #' @param language Langauage (support only English)
 #' @param verbose 
@@ -43,7 +43,7 @@ get_sentiment <- function(dt, api_key, language = "en", verbose = F) {
 
 #' Get result from Key Phrase Extraction API 
 #'
-#' @param dt Dataframe that contains id_str and text fields
+#' @param dt Dataframe that contains id and text fields
 #' @param api_key Cognitive Services API key
 #' @param language Langauage (support only English)
 #' @param verbose 
