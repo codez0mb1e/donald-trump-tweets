@@ -48,31 +48,32 @@ donald_tweets <- fread(donald_tweets_url, quote = "")
 
 donald_tweets %<>% 
   mutate(
-    id_str = as.character(id_str),
+    id = as.character(id_str),
+    # dates processing
     created_at = mdy_hms(created_at),
-    created_date = as.Date(created_at)
-  ) %>% 
-  mutate(
+    created_date = as.Date(created_at),
+    # text processing
     text = str_replace_all(text, '[^([:graph:][:space:])]', " | "),
     text = str_replace_all(text, '\"|\n', " || ")
-  )
+  ) %>% 
+  select(-id_str)
 
 donald_tweets %>% as_tibble()
 ```
 
     ## # A tibble: 10,096 x 8
-    ##    source  text      created_at          retweet_count favorite_count is_retweet id_str created_date
-    ##    <chr>   <chr>     <dttm>                      <int>          <int> <lgl>      <chr>  <date>      
-    ##  1 Twitte… TO ALL A… 2017-01-01 05:00:10         32665         126230 FALSE      81542… 2017-01-01  
-    ##  2 Twitte… RT @DanS… 2017-01-01 05:39:13          5548              0 TRUE       81543… 2017-01-01  
-    ##  3 Twitte… RT @Rein… 2017-01-01 05:43:23          7144              0 TRUE       81543… 2017-01-01  
-    ##  4 Twitte… RT @Eric… 2017-01-01 05:44:17          6941              0 TRUE       81543… 2017-01-01  
-    ##  5 Twitte… RT @Dona… 2017-01-01 06:49:33          6847              0 TRUE       81544… 2017-01-01  
-    ##  6 Twitte… RT @Ivan… 2017-01-01 06:49:49         13659              0 TRUE       81544… 2017-01-01  
-    ##  7 Twitte… Well the… 2017-01-02 14:40:10         29248         124024 FALSE      81593… 2017-01-02  
-    ##  8 Twitte… Chicago … 2017-01-02 17:31:17         17411          63340 FALSE      81597… 2017-01-02  
-    ##  9 Twitte… @CNN jus… 2017-01-02 18:32:29          3948          13862 FALSE      81598… 2017-01-02  
-    ## 10 Twitte… Various … 2017-01-02 18:37:10          9057          47285 FALSE      81599… 2017-01-02  
+    ##    source  text       created_at          retweet_count favorite_count is_retweet id    created_date
+    ##    <chr>   <chr>      <dttm>                      <int>          <int> <lgl>      <chr> <date>      
+    ##  1 Twitte… TO ALL AM… 2017-01-01 05:00:10         32665         126230 FALSE      8154… 2017-01-01  
+    ##  2 Twitte… RT @DanSc… 2017-01-01 05:39:13          5548              0 TRUE       8154… 2017-01-01  
+    ##  3 Twitte… RT @Reinc… 2017-01-01 05:43:23          7144              0 TRUE       8154… 2017-01-01  
+    ##  4 Twitte… RT @EricT… 2017-01-01 05:44:17          6941              0 TRUE       8154… 2017-01-01  
+    ##  5 Twitte… RT @Donal… 2017-01-01 06:49:33          6847              0 TRUE       8154… 2017-01-01  
+    ##  6 Twitte… RT @Ivank… 2017-01-01 06:49:49         13659              0 TRUE       8154… 2017-01-01  
+    ##  7 Twitte… Well the … 2017-01-02 14:40:10         29248         124024 FALSE      8159… 2017-01-02  
+    ##  8 Twitte… Chicago m… 2017-01-02 17:31:17         17411          63340 FALSE      8159… 2017-01-02  
+    ##  9 Twitte… @CNN just… 2017-01-02 18:32:29          3948          13862 FALSE      8159… 2017-01-02  
+    ## 10 Twitte… Various m… 2017-01-02 18:37:10          9057          47285 FALSE      8159… 2017-01-02  
     ## # … with 10,086 more rows
 
 ## Tweets sentiment
@@ -80,22 +81,149 @@ donald_tweets %>% as_tibble()
 Get tweets sentiment score:
 
 ``` r
-source("text_analytics_api.R")
+source("cognitive_services_api.R")
 
 donald_tweets_sentiments <- donald_tweets %>%
   group_by(lubridate::year(created_date), lubridate::month(created_date)) %>% 
-  group_map(~ get_sentiment(.x, secrets$cognitive_services_api_key)) %>%
+  group_map(~ get_sentiment(.x, secrets$cognitive_services_api_key, verbose = T)) %>%
   ungroup() %>% 
-  transmute(
-    id_str = id,
-    sentiment_score = score
-  )
+  transmute(id, sentiment_score = score)
+```
 
+    ## [1] "Processing tweets number: 214, size: 61.3 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 154, size: 44 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 147, size: 41.9 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 152, size: 43.6 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 155, size: 44 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 212, size: 60 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 245, size: 70.5 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 267, size: 77 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 306, size: 87.4 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 290, size: 82.3 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 261, size: 82.5 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 199, size: 68.9 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 205, size: 73 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 175, size: 63.7 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 171, size: 60.4 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 257, size: 89.6 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 259, size: 90.9 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 386, size: 133.4 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 336, size: 115.5 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 380, size: 133.8 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 383, size: 122.6 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 384, size: 123.8 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 338, size: 116.3 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 294, size: 109.1 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 369, size: 126.1 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 249, size: 82.5 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 405, size: 127.5 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 431, size: 139.9 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 692, size: 222.2 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 487, size: 161 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 692, size: 223.4 Kb"
+
+    ## Completed.
+
+    ## [1] "Processing tweets number: 601, size: 191.8 Kb"
+
+    ## Completed.
+
+``` r
 donald_tweets_sentiments %>% as_tibble
 ```
 
     ## # A tibble: 10,096 x 2
-    ##    id_str             sentiment_score
+    ##    id                 sentiment_score
     ##    <chr>                        <dbl>
     ##  1 815422340540547073          0.993 
     ##  2 815432169464197121          0.5   
@@ -153,7 +281,7 @@ Aggregate tweets (daily):
 ``` r
 donald_tweets_aggr <- donald_tweets %>% 
   filter(!is_retweet) %>% 
-  inner_join(donald_tweets_sentiments, by = "id_str") %>% 
+  inner_join(donald_tweets_sentiments, by = "id") %>% 
   group_by(created_date) %>% 
   summarise(
     n = n(),
