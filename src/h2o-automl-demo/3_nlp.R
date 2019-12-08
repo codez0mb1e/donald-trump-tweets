@@ -71,7 +71,11 @@ tweet_word_counts <- tweet_word_counts %>%
   left_join(total_words, by = "created_date") %>%
   bind_tf_idf(word, created_date, n)
 
-tweet_word_counts %>% arrange(-tf_idf)
+tweet_word_counts %>% 
+  group_by(created_date) %>% 
+  filter(tf_idf == max(tf_idf)) %>% 
+  arrange(desc(created_date))
+
 
 
 
@@ -92,33 +96,44 @@ h2o.init(nthreads = -1, # use all cores
 
 
 # Prepare data ----
-dtm <- h2o.cbind(as.h2o(dtm), 
-                 as.h2o(tweets$direction))
-
-dtm[1:10, 1:10]
-
-
-# set label and features
-label <- "label"
-
-dtm$label <- NULL
-names(dtm)[ncol(dtm)] <- label
+data <- h2o.cbind(tweets %>% select(-text) %>% as.h2o,
+                  dtm %>% as.h2o)
 
 stopifnot(
-  nrow(dtm) > 0,
-  is.factor(dtm$label)
+  nrow(data) > 0,
+  is.factor(data$direction)
 )
 
+data %>% as_tibble
 
-features <- setdiff(names(dtm), label)
+
+# Set label and features
+data$direction
+features <- setdiff(names(data), "direction")
+features %>% head(50)
+
+
+
+# Split ----
+data_split <- h2o.splitFrame(data, ratios = .8, seed = 314)
+
+train_dt <- data_split[[1]]
+test_dt <- data_split[[2]]
 
 
 
 # Train model ----
-auto <- h2o.automl(x = features, y = label,
-                   training_frame = dtm,
-                   nfolds = 3,
-                   max_runtime_secs = 60*10) # duration of searching
+auto <- h2o.automl(x = features, y = "direction",
+                   
+                   training_frame = train_dt,
+                   leaderboard_frame = test_dt,
+                  
+                   include_algos = c("GBM", "DeepLearning", "StackedEnsemble"),
+                   
+                   nfolds = 6,
+                   max_runtime_secs = 60*10,
+                   
+                   seed = 314) # duration of searching
 
 
 # view leaderboard
