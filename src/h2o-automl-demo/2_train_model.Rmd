@@ -37,7 +37,7 @@ secrets <- config::get(file = "secrets.yml")
 
 ## Load dataset
 ```{r load_dataset}
-tweets <- readRDS("cache/2019-09-06.rds") #! set your cache here
+tweets <- readRDS("cache/processed.2019-09-15.rds") #! set your cache here
 
 min(tweets$created_date)
 max(tweets$created_date)
@@ -67,19 +67,19 @@ tweets %<>%
   mutate(direction = as.factor(direction)) 
 
 train_dt <- tweets %>% 
-  filter(created_date < Sys.Date() - months(9)) %>%
+  filter(created_date < max(created_date) - months(9)) %>%
   as.h2o
 
 dim(train_dt)
 
 valid_dt <- tweets %>% 
-  filter(created_date >= Sys.Date() - months(9) & created_date < Sys.Date() - months(3)) %>% 
+  filter(created_date >= max(created_date) - months(9) & created_date <  max(created_date) - months(3)) %>% 
   as.h2o
 
 dim(valid_dt)
 
 test_dt <- tweets %>% 
-  filter(created_date >= Sys.Date() - months(3)) %>% 
+  filter(created_date >= max(created_date) - months(3)) %>% 
   as.h2o()
 
 dim(test_dt)
@@ -91,9 +91,12 @@ dim(test_dt)
 Start AutoML models training:
 ```{r h2o_automl, message=FALSE}
 auto <- h2o.automl(x = features, y = label,
+                   
                    training_frame = train_dt,
                    validation_frame = valid_dt,
                    leaderboard_frame = test_dt,
+                   
+                   stopping_metric = "AUC",
                    max_runtime_secs = 60*10, #! set appropriate duration of searching model
                    seed = 314)
 ```
@@ -115,7 +118,7 @@ best
 
 View feature importance:
 ```{r varimp_plot}
-#h2o.varimp_plot(best, num_of_features = 10)
+h2o.varimp_plot(best, num_of_features = 10)
 ```
 
 
