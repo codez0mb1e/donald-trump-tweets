@@ -141,7 +141,7 @@ donald_tweets_aggr %>% as_tibble
 ```{r save_output, include=FALSE}
 saveRDS(donald_tweets_aggr, sprintf("cache/processed.%s.rds", Sys.Date()))
 
-write.table(donald_tweets_aggr, file = "output/donald_tweets_aggr.csv",
+write.table(donald_tweets_aggr, file = "cache/donald_tweets_aggr.csv",
             sep = ",", fileEncoding = "utf-8",
             row.names = F, col.names = T, append = F, quote = T)
 ```
