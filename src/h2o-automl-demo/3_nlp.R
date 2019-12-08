@@ -22,7 +22,7 @@ suppressPackageStartupMessages({
 
 
 # Load dataset ----
-tweets <- readRDS("cache/2019-09-15.rds")
+tweets <- readRDS("cache/processed.2019-09-15.rds")
 
 
 
@@ -118,12 +118,12 @@ features <- setdiff(names(dtm), label)
 auto <- h2o.automl(x = features, y = label,
                    training_frame = dtm,
                    nfolds = 3,
-                   max_runtime_secs = 60*2) # duration of searching
+                   max_runtime_secs = 60*10) # duration of searching
 
 
 # view leaderboard
-lb <- auto@leaderboard
-lb
+auto@leaderboard
+
 
 # view best model
 best <- auto@leader
