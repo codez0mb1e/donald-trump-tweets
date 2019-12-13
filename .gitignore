@@ -60,7 +60,10 @@ launchSettings.json
 # knitr and R markdown default cache directories
 **/*_files/
 **/*_cache/
+<<<<<<< HEAD
 #**/cache/
+=======
+>>>>>>> fa1bececefcebd85345f178f4adc572f28fa870d
 
 # Temporary files created by R markdown
 *.utf8.md

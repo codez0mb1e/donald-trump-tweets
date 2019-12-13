@@ -12,109 +12,177 @@ __Prepare dataset contains:__
 
 * __@realDonaldTrump tweets,__
 
-* __its sentiment scores from Microsoft Cognitive Service__
+* __its sentiment scores from Microsoft Cognitive Service,__
 
-* __Dow Jones Index.__
+* __Dow Jones NYSE index.__
 
 
 Import dependencies and read config:
-```{r set_env_options}
+```{r set_env_options, include=FALSE}
 options(max.print = 1e3, scipen = 999, width = 1e2)
 options(stringsAsFactors = F)
 ```
 
-```{r import_dependencies, echo=TRUE}
+```{r import_dependencies, include=FALSE}
 suppressPackageStartupMessages({
+  # data manupulation
   library(data.table)
   library(dplyr)
   library(tidyr)
   library(purrr)
   library(magrittr)
-  
+
+  # text processing
   library(stringr)
-  library(lubridate)
+  library(tidytext)
+  library(wordcloud)
   
+  # other
+  library(lubridate)
   library(Quandl)
 })
 
 ```
 
-```{r read_secrets, echo=TRUE}
+```{r read_secrets, include=FALSE}
 secrets <- config::get(file = "secrets.yml")
 ```
 
+# Part I. Naive approach
 
-## @realDonaldTrump Tweets
+## Get @realDonaldTrump Tweets
 
 Download tweets:
 ```{r read_tweets, cache=TRUE}
 donald_tweets_url <- sprintf("https://datainstinct.blob.core.windows.net/twitter/realdonaldtrump.csv?%s", secrets$azure_storage_key)
+
 
 donald_tweets <- fread(donald_tweets_url, quote = "")
 
 donald_tweets %<>% 
   mutate(
     id = as.character(id_str),
+    
     # dates processing
     created_at = mdy_hms(created_at),
     created_date = as.Date(created_at),
+    
     # text processing
-    text = str_replace_all(text, '[^([:graph:][:space:])]', " | "),
+    text = str_replace_all(text, "[^([:graph:][:space:])]", " | "),
     text = str_replace_all(text, '\"|\n', " || ")
   ) %>% 
   select(-id_str)
 
-donald_tweets %>% as_tibble()
+
+donald_tweets %>% 
+  select(created_at, text, retweet_count, favorite_count) %>% 
+  arrange(desc(created_at)) %>% 
+  as_tibble()
 ```
 
+## Get Dow Jones NYSE index
 
-## Tweets sentiment 
-
-Get tweets sentiment score:  
-```{r get_sentiment, cache=TRUE}
-source("cognitive_services_api.R")
-
-donald_tweets_sentiments <- donald_tweets %>%
-  group_by(lubridate::year(created_date), lubridate::month(created_date)) %>% 
-  group_map(~ get_sentiment(.x, secrets$cognitive_services_api_key, verbose = T)) %>%
-  ungroup() %>% 
-  transmute(id, sentiment_score = score)
-
-donald_tweets_sentiments %>% as_tibble
-```
-
-
-## Dow Jones index
-
-Get stock data:
+Get [Dow Jones NYSE](https://www.quandl.com/data/BCB/7809-Dow-Jones-NYSE-index) data:
 
 ```{r get_dow_jones_index, cache=TRUE}
 Quandl.api_key(secrets$quandl_api_key)
+
+
 dji <- Quandl("BCB/7809")
 
 dji %<>% 
   arrange(Date) %>% 
   mutate(diff = Value - lag(Value)) %>% 
   na.omit %>% 
-  mutate(
-    direction = if_else(diff < 0, 0L, 1L)
-  ) %>% 
-  transmute(
-    date = Date, direction
-  )
+  mutate(direction = if_else(diff < 0, 0L, 1L)) %>% 
+  rename(date = Date)
 
-dji %>% as_tibble
+
+dji %>% 
+  arrange(desc(date)) %>% 
+  as_tibble
 ```
 
 
 ## Join datasets
 
 Aggregate tweets (daily):
-
 ```{r aggregate_twees}
-donald_tweets_aggr <- donald_tweets %>% 
+donald_tweets_daily <- donald_tweets %>% 
+  # remove retweets
   filter(!is_retweet) %>% 
+  # calc daily stats
+  group_by(created_date) %>% 
+  summarise(
+    n = n(),
+    text = paste(text, collapse = " ||| ")
+  ) %>% 
+  ungroup() %>% 
+  # join w/ Dow Jones Index
+  inner_join(
+    dji %>% select(date, direction), 
+    by = c("created_date" = "date")
+  ) %>% 
+  # final touch
+  mutate(direction = as.factor(direction))
+
+
+donald_tweets_daily %>%
+  arrange(desc(created_date)) %>% 
+  as_tibble
+```
+
+
+## Save artifacts
+```{r save_artifacts, include=FALSE}
+write.table(donald_tweets_daily, 
+            "cache/donald_tweets_daily.naive.csv",
+            sep = ",", row.names = F, fileEncoding = "utf-8")
+```
+
+```{r gc, include=FALSE}
+rm(donald_tweets_daily)
+```
+
+
+
+# Part II. NLP approach
+
+## Tweets sentiment 
+
+Get tweets sentiment score from Azure Cognitive Services [Text Analytics API](https://azure.microsoft.com/en-us/services/cognitive-services/text-analytics/):  
+```{r get_sentiment, cache=TRUE}
+source("cognitive_services_api.R")
+
+donald_tweets_sentiments <- donald_tweets %>%
+  filter(year(created_date) == 2019) %>% # TODO: only for debug
+  group_by(lubridate::year(created_date), lubridate::month(created_date)) %>% 
+  group_map(~ get_sentiment(.x, secrets$cognitive_services_api_key, verbose = T))
+
+donald_tweets_sentiments %<>% 
+  bind_rows %>% 
+  transmute(id, sentiment_score = score)
+
+
+donald_tweets %>% 
+  inner_join(donald_tweets_sentiments, by = "id") %>%
+  select(text, sentiment_score) %>% 
+  as_tibble
+```
+
+
+
+## Join datasets
+
+Aggregate tweets (daily):
+
+```{r donald_tweets_daily}
+donald_tweets_daily <- donald_tweets %>% 
+  # remove retweets
+  filter(!is_retweet) %>%
+  # join w/ tweets sentiments
   inner_join(donald_tweets_sentiments, by = "id") %>% 
+  # calс daily aggregates
   group_by(created_date) %>% 
   summarise(
     n = n(),
@@ -132,16 +200,112 @@ donald_tweets_aggr <- donald_tweets %>%
     text_total = paste(text, collapse = " ||| ")
   ) %>% 
   ungroup() %>% 
-  inner_join(dji, by = c("created_date" = "date"))
+  # join w/ DJI
+  inner_join(
+    dji %>% select(date, direction), 
+    by = c("created_date" = "date")
+  ) %>% 
+  # final touch 
+  mutate(direction = as.factor(direction)) %>% 
+  rename(text = text_total)
 
-donald_tweets_aggr %>% as_tibble
+
+donald_tweets_daily %>% as_tibble
 ```
 
 
-```{r save_output, include=FALSE}
-saveRDS(donald_tweets_aggr, sprintf("cache/processed.%s.rds", Sys.Date()))
+```{r save_to_cache, include=FALSE}
+saveRDS(donald_tweets_daily, sprintf("cache/processed.%s.rds", Sys.Date()))
+```
 
-write.table(donald_tweets_aggr, file = "cache/donald_tweets_aggr.csv",
+
+## Remove stopwords
+
+```{r remove_stopwords}
+tweet_words <- donald_tweets_daily %>%
+  select(created_date, text) %>% 
+  filter(!str_detect(text, '^"')) %>% # remove quotations
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", "")) %>% # remove links
+  unnest_tokens(word, text, token = "regex", pattern = "([^A-Za-z\\d#@']|'(?![A-Za-z\\d#@]))") %>% # remove @ and #
+  filter(
+    !word %in% stop_words$word &
+    str_detect(word, "[a-z]")
+  )
+
+
+tweet_words %>% 
+  count(word) %>% 
+  arrange(desc(n))
+```
+
+
+## Stats and word cloud
+```{r word_clouds}
+tweet_word_counts <- tweet_words %>% count(created_date, word)
+
+
+# go to 4-th page
+tweet_word_counts %>% 
+  filter(word != "rt") %>% 
+  count(word) %>% 
+  arrange(-n)
+
+# go to 6-th page
+tweet_word_counts %>% 
+  filter(word != "rt" & year(created_date) == 2019) %>% 
+  count(word) %>% 
+  arrange(-n)
+
+
+total_words <- tweet_word_counts %>% 
+  group_by(created_date) %>% 
+  summarize(total = sum(n))
+
+total_words %>% arrange(-total)
+
+
+tweet_words %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 50, color = "gray"))
+```
+
+
+## Compute TD-IDF
+```{r calc_td_idf}
+tweet_word_counts <- tweet_word_counts %>% 
+  left_join(total_words, by = "created_date") %>%
+  bind_tf_idf(word, created_date, n)
+
+tweet_word_counts %>% 
+  group_by(created_date) %>% 
+  filter(tf_idf == max(tf_idf)) %>% 
+  arrange(desc(created_date))
+```
+
+
+## Calc Document-Term Matrix
+
+```{r calc_dtm}
+tweets_dtm <- cast_sparse_(tweet_word_counts, "created_date", "word", "tf_idf")
+
+print(dim(tweets_dtm))
+print(tweets_dtm[1:7, 1:7])
+```
+
+
+```{r view_result}
+donald_tweets_daily %<>% 
+  select(-text) %>% 
+  cbind(tweets_dtm %>% as.matrix %>% as_tibble)
+
+
+donald_tweets_daily %>% as_tibble
+```
+
+
+
+```{r save_output, include=FALSE}
+write.table(donald_tweets_daily, file = "cache/donald_tweets_daily.nlp.csv",
             sep = ",", fileEncoding = "utf-8",
             row.names = F, col.names = T, append = F, quote = T)
 ```
