@@ -96,8 +96,9 @@ auto <- h2o.automl(x = features, y = label,
                    validation_frame = valid_dt,
                    leaderboard_frame = test_dt,
                    
+                   include_algos = c("GBM", "DeepLearning", "StackedEnsemble"),
                    stopping_metric = "AUC",
-                   max_runtime_secs = 60*10, #! set appropriate duration of searching model
+                   max_runtime_secs = 60*60*16,
                    seed = 314)
 ```
 

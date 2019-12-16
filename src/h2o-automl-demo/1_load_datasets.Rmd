@@ -60,6 +60,7 @@ donald_tweets_url <- sprintf("https://datainstinct.blob.core.windows.net/twitter
 donald_tweets <- fread(donald_tweets_url, quote = "")
 
 donald_tweets %<>% 
+  filter(!is_retweet) %>% 
   mutate(
     id = as.character(id_str),
     
@@ -68,8 +69,10 @@ donald_tweets %<>%
     created_date = as.Date(created_at),
     
     # text processing
-    text = str_replace_all(text, "[^([:graph:][:space:])]", " | "),
-    text = str_replace_all(text, '\"|\n', " || ")
+    text = str_replace_all(text, '\n', " || "),
+    text = str_replace_all(text, "&amp;", "and"),
+    text = str_replace_all(text, '"', ""),
+    text = str_replace_all(text, "http(s)://t.co/[A-Za-z\\d]+", "<url>"),
   ) %>% 
   select(-id_str)
 
@@ -109,8 +112,6 @@ dji %>%
 Aggregate tweets (daily):
 ```{r aggregate_twees}
 donald_tweets_daily <- donald_tweets %>% 
-  # remove retweets
-  filter(!is_retweet) %>% 
   # calc daily stats
   group_by(created_date) %>% 
   summarise(
@@ -155,7 +156,7 @@ Get tweets sentiment score from Azure Cognitive Services [Text Analytics API](ht
 source("cognitive_services_api.R")
 
 donald_tweets_sentiments <- donald_tweets %>%
-  filter(year(created_date) == 2019) %>% # TODO: only for debug
+  filter(year(created_date) == 2019 & month(created_date) == 6) %>% # TODO: only for debug
   group_by(lubridate::year(created_date), lubridate::month(created_date)) %>% 
   group_map(~ get_sentiment(.x, secrets$cognitive_services_api_key, verbose = T))
 
@@ -178,8 +179,6 @@ Aggregate tweets (daily):
 
 ```{r donald_tweets_daily}
 donald_tweets_daily <- donald_tweets %>% 
-  # remove retweets
-  filter(!is_retweet) %>%
   # join w/ tweets sentiments
   inner_join(donald_tweets_sentiments, by = "id") %>% 
   # calс daily aggregates
@@ -224,8 +223,6 @@ saveRDS(donald_tweets_daily, sprintf("cache/processed.%s.rds", Sys.Date()))
 ```{r remove_stopwords}
 tweet_words <- donald_tweets_daily %>%
   select(created_date, text) %>% 
-  filter(!str_detect(text, '^"')) %>% # remove quotations
-  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", "")) %>% # remove links
   unnest_tokens(word, text, token = "regex", pattern = "([^A-Za-z\\d#@']|'(?![A-Za-z\\d#@]))") %>% # remove @ and #
   filter(
     !word %in% stop_words$word &
@@ -246,13 +243,12 @@ tweet_word_counts <- tweet_words %>% count(created_date, word)
 
 # go to 4-th page
 tweet_word_counts %>% 
-  filter(word != "rt") %>% 
   count(word) %>% 
   arrange(-n)
 
 # go to 6-th page
 tweet_word_counts %>% 
-  filter(word != "rt" & year(created_date) == 2019) %>% 
+  filter(year(created_date) == 2019) %>% 
   count(word) %>% 
   arrange(-n)
 
@@ -294,6 +290,8 @@ print(tweets_dtm[1:7, 1:7])
 
 
 ```{r view_result}
+# TODO: remove 'direction'
+
 donald_tweets_daily %<>% 
   select(-text) %>% 
   cbind(tweets_dtm %>% as.matrix %>% as_tibble)
