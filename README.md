@@ -2,7 +2,9 @@
 ___Analyze Donald Trump Tweets with usage Natural Language Processing (NLP)___.
 
 
-## Case 1: Donald Trump vs Dow Jones Index based
+![word cloud](/img/word-cloud.png "word cloud")
+
+## Case 1: Donald Trump vs Dow Jones Index
 Predict the direction of the __Dow Jones Index__ based on  __Donald Trump Tweets__.
 
 
